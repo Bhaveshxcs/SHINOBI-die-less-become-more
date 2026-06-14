@@ -1,0 +1,6 @@
+{
+  "name": "Shinobi",
+  "description": "An AI mentor, behavioral analyst, fitness coach, and study guide designed for self-improvement and self-discipline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
