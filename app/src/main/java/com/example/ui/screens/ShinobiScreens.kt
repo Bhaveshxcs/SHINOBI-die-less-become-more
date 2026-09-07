@@ -1034,9 +1034,17 @@ fun StudyScreen(
     onExplainConcept: (String) -> Unit,
     isGenerating: Boolean
 ) {
+    val presets = listOf(15, 25, 45, 60, 90)
+    var selectedPresetMinutes by remember { mutableIntStateOf(25) }
+    var customMinutesInput by remember { mutableStateOf("") }
+    var isCustomDuration by remember { mutableStateOf(false) }
+
+    val studyTechniques = listOf("Pomodoro", "Deep Focus", "Active Recall", "Feynman Drill")
+    var selectedTechnique by remember { mutableStateOf("Pomodoro") }
+
     var isTimerRunning by remember { mutableStateOf(false) }
-    var timeLeftSeconds by remember { mutableStateOf(25 * 60) }
-    var plannedSeconds by remember { mutableStateOf(25 * 60) }
+    var timeLeftSeconds by remember { mutableIntStateOf(25 * 60) }
+    var plannedSeconds by remember { mutableIntStateOf(25 * 60) }
 
     var isSessionActive by remember { mutableStateOf(false) }
     var currentSubject by remember { mutableStateOf("") }
@@ -1045,8 +1053,8 @@ fun StudyScreen(
     var showDebriefDialog by remember { mutableStateOf(false) }
     var debriefSubject by remember { mutableStateOf("") }
     var debriefTarget by remember { mutableStateOf("") }
-    var debriefPlannedMin by remember { mutableStateOf(25) }
-    var debriefActualMin by remember { mutableStateOf(25) }
+    var debriefPlannedMin by remember { mutableIntStateOf(25) }
+    var debriefActualMin by remember { mutableIntStateOf(25) }
 
     var whatLearned by remember { mutableStateOf("") }
     var whatConfused by remember { mutableStateOf("") }
@@ -1054,7 +1062,12 @@ fun StudyScreen(
 
     var explanationQuery by remember { mutableStateOf("") }
 
-    // Timer Effect
+    val todayDateStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+    val todayStudyMinutes = remember(studySessions) {
+        studySessions.filter { it.dateString == todayDateStr }.sumOf { it.actualMinutes }
+    }
+
+    // Timer countdown effect
     LaunchedEffect(isTimerRunning) {
         while (isTimerRunning && timeLeftSeconds > 0) {
             delay(1000)
@@ -1062,9 +1075,8 @@ fun StudyScreen(
         }
         if (timeLeftSeconds == 0 && isTimerRunning) {
             isTimerRunning = false
-            // Open debrief
-            debriefSubject = currentSubject
-            debriefTarget = targetObjective
+            debriefSubject = if (currentSubject.isNotBlank()) currentSubject else "Deep Focus ($selectedTechnique)"
+            debriefTarget = if (targetObjective.isNotBlank()) targetObjective else "Targeted study block"
             debriefPlannedMin = plannedSeconds / 60
             debriefActualMin = plannedSeconds / 60
             showDebriefDialog = true
@@ -1082,22 +1094,621 @@ fun StudyScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, BorderColor)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "MIND - STUDY COMPANION",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "The study room is a martial space. We study to digest, execute and understand, not to load time sheets.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "STUDY FOCUS CHAMBER",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Train the mind with ruthless focus blocks & immediate debriefs.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(DarkBackground)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, contentDescription = "Focus", tint = AmberGold, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Today's Focus: ${todayStudyMinutes}m",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Text(
+                            text = "${studySessions.size} total sessions logged",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SkyTeal,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+
+        // ACTIVE STUDY TIMER OR SETUP
+        if (!isSessionActive && !showDebriefDialog) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    border = BorderStroke(1.5.dp, ShinobiRed.copy(alpha = 0.7f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "STUDY TIMER SETUP",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+
+                            Text(
+                                text = "${if (isCustomDuration) (customMinutesInput.toIntOrNull() ?: 25) else selectedPresetMinutes} MIN",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = ShinobiRed,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Duration Presets Row
+                        Text(
+                            text = "SELECT DURATION BLOCK",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            presets.forEach { mins ->
+                                val isSelected = !isCustomDuration && selectedPresetMinutes == mins
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        isCustomDuration = false
+                                        selectedPresetMinutes = mins
+                                    },
+                                    label = { Text("${mins}m", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = ShinobiRed,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Custom Duration Option
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = isCustomDuration,
+                                onClick = { isCustomDuration = true },
+                                label = { Text("Custom", fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SkyTeal,
+                                    selectedLabelColor = DarkBackground
+                                )
+                            )
+                            if (isCustomDuration) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                OutlinedTextField(
+                                    value = customMinutesInput,
+                                    onValueChange = { input ->
+                                        if (input.all { it.isDigit() } && input.length <= 3) {
+                                            customMinutesInput = input
+                                        }
+                                    },
+                                    placeholder = { Text("Min (e.g. 50)") },
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(color = TextPrimary),
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .testTag("custom_minutes_input"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = SkyTeal,
+                                        unfocusedBorderColor = BorderColor
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Technique Chips
+                        Text(
+                            text = "FOCUS METHODOLOGY",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            studyTechniques.forEach { tech ->
+                                val isSelected = selectedTechnique == tech
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedTechnique = tech },
+                                    label = { Text(tech, fontSize = 11.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = AmberGold.copy(alpha = 0.25f),
+                                        selectedLabelColor = AmberGold
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = currentSubject,
+                            onValueChange = { currentSubject = it },
+                            label = { Text("Subject / Topic") },
+                            placeholder = { Text("e.g. Data Structures, Cell Biology, Microeconomics") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("study_subject_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ShinobiRed,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = targetObjective,
+                            onValueChange = { targetObjective = it },
+                            label = { Text("Target Objective / Key Question") },
+                            placeholder = { Text("e.g. Master balancing Red-Black trees & prove runtime") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("study_target_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ShinobiRed,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        val resolvedMinutes = if (isCustomDuration) {
+                            (customMinutesInput.toIntOrNull() ?: 25).coerceIn(1, 300)
+                        } else {
+                            selectedPresetMinutes
+                        }
+
+                        Button(
+                            onClick = {
+                                val subj = if (currentSubject.isNotBlank()) currentSubject.trim() else "Deep Study Block"
+                                val target = if (targetObjective.isNotBlank()) targetObjective.trim() else "Cognitive immersion ($selectedTechnique)"
+                                currentSubject = subj
+                                targetObjective = target
+                                plannedSeconds = resolvedMinutes * 60
+                                timeLeftSeconds = resolvedMinutes * 60
+                                isTimerRunning = true
+                                isSessionActive = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ShinobiRed),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("btn_start_pomodoro")
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Start Timer", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("COMMENCE $resolvedMinutes-MIN STUDY TIMER", fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        }
+                    }
+                }
+            }
+        } else if (isSessionActive) {
+            // Screen representation of active study timer
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.5.dp, if (isTimerRunning) ShinobiRed else AmberGold)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Header badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isTimerRunning) ShinobiRedMuted else AmberGold.copy(alpha = 0.2f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isTimerRunning) "● IMMERSION ACTIVE ($selectedTechnique)" else "⏸ STUDY TIMER PAUSED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isTimerRunning) ShinobiRed else AmberGold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = currentSubject,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Target: $targetObjective",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Large Digital Countdown Clock
+                        val hoursLeft = timeLeftSeconds / 3600
+                        val minutesLeft = (timeLeftSeconds % 3600) / 60
+                        val secondsLeft = timeLeftSeconds % 60
+                        val formattedTime = if (hoursLeft > 0) {
+                            String.format("%02d:%02d:%02d", hoursLeft, minutesLeft, secondsLeft)
+                        } else {
+                            String.format("%02d:%02d", minutesLeft, secondsLeft)
+                        }
+
+                        Text(
+                            text = formattedTime,
+                            fontSize = 54.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (timeLeftSeconds <= 60 && isTimerRunning) ShinobiRed else TextPrimary,
+                            letterSpacing = 2.sp,
+                            modifier = Modifier.testTag("pomodoro_text_timer")
+                        )
+
+                        val progressFraction = if (plannedSeconds > 0) {
+                            (timeLeftSeconds / plannedSeconds.toFloat()).coerceIn(0f, 1f)
+                        } else 0f
+
+                        val elapsedMinutes = (plannedSeconds - timeLeftSeconds) / 60
+                        val totalMinutes = plannedSeconds / 60
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "$elapsedMinutes of $totalMinutes min elapsed",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontFamily = FontFamily.Monospace
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        LinearProgressIndicator(
+                            progress = { progressFraction },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp)),
+                            color = if (timeLeftSeconds <= 60) ShinobiRed else MintGreen,
+                            trackColor = BorderColor
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Quick Timer Extensions Row (+1m, +5m)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    timeLeftSeconds += 60
+                                    plannedSeconds += 60
+                                },
+                                border = BorderStroke(1.dp, BorderColor),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "+1m", modifier = Modifier.size(14.dp), tint = SkyTeal)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+1 Min", fontSize = 12.sp, color = SkyTeal)
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    timeLeftSeconds += 300
+                                    plannedSeconds += 300
+                                },
+                                border = BorderStroke(1.dp, BorderColor),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "+5m", modifier = Modifier.size(14.dp), tint = MintGreen)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+5 Min", fontSize = 12.sp, color = MintGreen)
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    timeLeftSeconds = plannedSeconds
+                                    isTimerRunning = false
+                                },
+                                border = BorderStroke(1.dp, BorderColor),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reset", modifier = Modifier.size(14.dp), tint = TextSecondary)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Reset", fontSize = 12.sp, color = TextSecondary)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Primary Action Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { isTimerRunning = !isTimerRunning },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isTimerRunning) AmberGold else MintGreen
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("btn_pause_study")
+                            ) {
+                                Icon(
+                                    if (isTimerRunning) Icons.Default.Close else Icons.Default.PlayArrow,
+                                    contentDescription = "Toggle Pause",
+                                    tint = DarkBackground,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (isTimerRunning) "PAUSE" else "RESUME",
+                                    color = DarkBackground,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    isTimerRunning = false
+                                    debriefSubject = currentSubject
+                                    debriefTarget = targetObjective
+                                    debriefPlannedMin = plannedSeconds / 60
+                                    debriefActualMin = ((plannedSeconds - timeLeftSeconds) / 60).coerceAtLeast(1)
+                                    showDebriefDialog = true
+                                    isSessionActive = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ShinobiRed),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(48.dp)
+                                    .testTag("btn_terminate_study")
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "End & Debrief", modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("END & DEBRIEF", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showDebriefDialog) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    border = BorderStroke(1.5.dp, MintGreen)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "STUDY SESSION DEBRIEF",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MintGreen,
+                                fontFamily = FontFamily.Monospace
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MintGreen.copy(alpha = 0.2f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${debriefActualMin}m Logged",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MintGreen,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Subject: $debriefSubject",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Target: $debriefTarget",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = whatLearned,
+                            onValueChange = { whatLearned = it },
+                            label = { Text("What did you actually understand / internalize?") },
+                            placeholder = { Text("Summarize core concept takeaways in your own words...") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            minLines = 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("debrief_learned_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ShinobiRed,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = whatConfused,
+                            onValueChange = { whatConfused = it },
+                            label = { Text("What was confusing, resisted, or unclear?") },
+                            placeholder = { Text("Be brutally honest about cognitive friction...") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            minLines = 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("debrief_confused_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ShinobiRed,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = tomorrowFocus,
+                            onValueChange = { tomorrowFocus = it },
+                            label = { Text("Immediate next review focus point:") },
+                            placeholder = { Text("A highly targeted next action step...") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("debrief_tomorrow_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ShinobiRed,
+                                unfocusedBorderColor = BorderColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    showDebriefDialog = false
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Discard", color = TextSecondary)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val learned = if (whatLearned.isNotBlank()) whatLearned.trim() else "Study block completed without notes."
+                                    val nextStep = if (tomorrowFocus.isNotBlank()) tomorrowFocus.trim() else "Follow-up review."
+                                    onAddStudySession(
+                                        debriefSubject,
+                                        debriefTarget,
+                                        debriefPlannedMin,
+                                        debriefActualMin,
+                                        learned,
+                                        whatConfused.trim(),
+                                        nextStep
+                                    )
+                                    // Reset active variables
+                                    whatLearned = ""
+                                    whatConfused = ""
+                                    tomorrowFocus = ""
+                                    showDebriefDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MintGreen),
+                                modifier = Modifier
+                                    .weight(2f)
+                                    .testTag("btn_submit_debrief")
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "Transmit", tint = DarkBackground, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("SAVE DEBRIEF", fontWeight = FontWeight.Bold, color = DarkBackground)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1108,7 +1719,8 @@ fun StudyScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, BorderColor)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -1117,9 +1729,9 @@ fun StudyScreen(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Ask Shinobi to explain a concept. He will explain it using real world analogies and quiz you immediate. Understating is not passive.",
+                        text = "Ask Shinobi to explain a concept. He will explain it using real world analogies and test your understanding immediately.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -1131,6 +1743,7 @@ fun StudyScreen(
                             onValueChange = { explanationQuery = it },
                             placeholder = { Text("e.g. Recursion, Pointer, Binary Tree...") },
                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                            singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("field_concept_query"),
@@ -1159,282 +1772,6 @@ fun StudyScreen(
             }
         }
 
-        // ACTIVE POMODORO OR SETUP
-        if (!isSessionActive && !showDebriefDialog) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, BorderColor)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "START ACTIVE STUDY SESSION",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = currentSubject,
-                            onValueChange = { currentSubject = it },
-                            label = { Text("Subject / Topic") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("study_subject_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShinobiRed,
-                                unfocusedBorderColor = BorderColor
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = targetObjective,
-                            onValueChange = { targetObjective = it },
-                            label = { Text("What specific sub-concept to understand by end?") },
-                            placeholder = { Text("Avoid generalities like 'Read chapter'!") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("study_target_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShinobiRed,
-                                unfocusedBorderColor = BorderColor
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = {
-                                if (currentSubject.isNotBlank() && targetObjective.isNotBlank()) {
-                                    isSessionActive = true
-                                    timeLeftSeconds = 25 * 60
-                                    plannedSeconds = 25 * 60
-                                    isTimerRunning = true
-                                }
-                            },
-                            enabled = currentSubject.isNotBlank() && targetObjective.isNotBlank(),
-                            colors = ButtonDefaults.buttonColors(containerColor = ShinobiRed),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("btn_start_pomodoro")
-                        ) {
-                            Text("COMMENCE 25-MIN COMBAT STUDY", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        } else if (isSessionActive) {
-            // Screen representation of active timer
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, ShinobiRed)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "ENGAGED: $currentSubject",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ShinobiRed,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Objective: $targetObjective",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        val minutesLeft = timeLeftSeconds / 60
-                        val secondsLeft = timeLeftSeconds % 60
-                        val formattedTime = String.format("%02d:%02d", minutesLeft, secondsLeft)
-
-                        Text(
-                            text = formattedTime,
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = TextPrimary,
-                            modifier = Modifier.testTag("pomodoro_text_timer")
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        LinearProgressIndicator(
-                            progress = { timeLeftSeconds / plannedSeconds.toFloat() },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                            color = ShinobiRed,
-                            trackColor = BorderColor
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = { isTimerRunning = !isTimerRunning },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isTimerRunning) AmberGold else MintGreen
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("btn_pause_study")
-                            ) {
-                                Text(if (isTimerRunning) "PAUSE FOCUS" else "RESUME", color = DarkBackground, fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = {
-                                    isTimerRunning = false
-                                    debriefSubject = currentSubject
-                                    debriefTarget = targetObjective
-                                    debriefPlannedMin = plannedSeconds / 60
-                                    debriefActualMin = (plannedSeconds - timeLeftSeconds) / 60
-                                    showDebriefDialog = true
-                                    isSessionActive = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = ShinobiRed),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("btn_terminate_study")
-                            ) {
-                                Text("END & DEBRIEF", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (showDebriefDialog) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, MintGreen)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "DEBRIEF & REFLECTION PROCESS",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MintGreen,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Unpacking subject: $debriefSubject",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Planned study was: $debriefPlannedMin mins, Actual spent: $debriefActualMin mins",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedTextField(
-                            value = whatLearned,
-                            onValueChange = { whatLearned = it },
-                            label = { Text("What did you actually understand / memorize?") },
-                            placeholder = { Text("List core concept takeaways...") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            minLines = 2,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("debrief_learned_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShinobiRed,
-                                unfocusedBorderColor = BorderColor
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = whatConfused,
-                            onValueChange = { whatConfused = it },
-                            label = { Text("What was actually confusing or avoided?") },
-                            placeholder = { Text("Be brutally honest about friction...") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            minLines = 2,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("debrief_confused_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShinobiRed,
-                                unfocusedBorderColor = BorderColor
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = tomorrowFocus,
-                            onValueChange = { tomorrowFocus = it },
-                            label = { Text("Immediate tomorrow review focus point:") },
-                            placeholder = { Text("A highly targeted next action step...") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("debrief_tomorrow_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ShinobiRed,
-                                unfocusedBorderColor = BorderColor
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Button(
-                            onClick = {
-                                if (whatLearned.isNotBlank() && tomorrowFocus.isNotBlank()) {
-                                    onAddStudySession(
-                                        debriefSubject,
-                                        debriefTarget,
-                                        debriefPlannedMin,
-                                        debriefActualMin,
-                                        whatLearned,
-                                        whatConfused,
-                                        tomorrowFocus
-                                    )
-                                    // Reset active variables
-                                    whatLearned = ""
-                                    whatConfused = ""
-                                    tomorrowFocus = ""
-                                    showDebriefDialog = false
-                                }
-                            },
-                            enabled = whatLearned.isNotBlank() && tomorrowFocus.isNotBlank(),
-                            colors = ButtonDefaults.buttonColors(containerColor = MintGreen),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("btn_submit_debrief")
-                        ) {
-                            Text("TRANSMIT DEBRIEF TO SHINOBI", fontWeight = FontWeight.Bold, color = DarkBackground)
-                        }
-                    }
-                }
-            }
-        }
-
         // Historical study sessions
         if (studySessions.isNotEmpty()) {
             item {
@@ -1443,7 +1780,7 @@ fun StudyScreen(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = TextSecondary,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
                 )
             }
 
@@ -1452,7 +1789,8 @@ fun StudyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, BorderColor)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -1461,7 +1799,7 @@ fun StudyScreen(
                         ) {
                             Text(text = session.subject, fontWeight = FontWeight.Bold, color = TextPrimary)
                             Text(
-                                text = "${session.actualMinutes} mins logged",
+                                text = "${session.actualMinutes}m logged",
                                 color = SkyTeal,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold
