@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import com.example.data.ShinobiDatabase
 import com.example.data.ShinobiRepository
+import com.example.feature.focus.FocusScreen
+import com.example.feature.focus.FocusViewModel
 import com.example.feature.habits.HabitScreen
 import com.example.feature.habits.HabitViewModel
 import com.example.feature.hackathons.HackathonScreen
@@ -40,6 +42,7 @@ import com.example.ui.theme.MyApplicationTheme
 enum class ShinobiTab(val title: String, val icon: ImageVector, val tag: String) {
   HACKATHONS("Hackathons", Icons.Default.EmojiEvents, "tab_hackathons"),
   HABITS("Habits", Icons.Default.Repeat, "tab_habits"),
+  FOCUS("Focus", Icons.Default.HourglassBottom, "tab_focus"),
 }
 
 class MainActivity : ComponentActivity() {
@@ -55,12 +58,16 @@ class MainActivity : ComponentActivity() {
     HabitViewModel.provideFactory(repository)
   }
 
+  private val focusViewModel: FocusViewModel by viewModels {
+    FocusViewModel.provideFactory(repository)
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        var selectedTabIndex by remember { mutableIntStateOf(1) } // Default to Habits for Step 3 review
+        var selectedTabIndex by remember { mutableIntStateOf(2) } // Default to Focus for Step 4 review
 
         Scaffold(
           modifier = Modifier.fillMaxSize(),
@@ -89,6 +96,7 @@ class MainActivity : ComponentActivity() {
             when (selectedTabIndex) {
               0 -> HackathonScreen(viewModel = hackathonViewModel)
               1 -> HabitScreen(viewModel = habitViewModel)
+              2 -> FocusScreen(viewModel = focusViewModel)
             }
           }
         }
