@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import com.example.data.ShinobiDatabase
 import com.example.data.ShinobiRepository
 import com.example.feature.dsaprojects.DsaProjectsScreen
+import com.example.feature.dsaprojects.DsaProjectsSection
 import com.example.feature.dsaprojects.DsaProjectsViewModel
 import com.example.feature.focus.FocusScreen
 import com.example.feature.focus.FocusViewModel
@@ -39,18 +40,25 @@ import com.example.feature.habits.HabitScreen
 import com.example.feature.habits.HabitViewModel
 import com.example.feature.hackathons.HackathonScreen
 import com.example.feature.hackathons.HackathonViewModel
+import com.example.feature.home.HomeScreen
+import com.example.feature.home.HomeViewModel
 import com.example.ui.theme.MyApplicationTheme
 
 enum class ShinobiTab(val title: String, val icon: ImageVector, val tag: String) {
+  HOME("Home", Icons.Default.Dashboard, "tab_home"),
   HACKATHONS("Hackathons", Icons.Default.EmojiEvents, "tab_hackathons"),
   HABITS("Habits", Icons.Default.Repeat, "tab_habits"),
-  FOCUS("Focus", Icons.Default.HourglassBottom, "tab_focus"),
+  TIMER("Timer", Icons.Default.HourglassBottom, "tab_timer"),
   DSA_PROJECTS("DSA/Projects", Icons.Default.Code, "tab_dsa_projects"),
 }
 
 class MainActivity : ComponentActivity() {
   private val repository by lazy {
     ShinobiRepository(ShinobiDatabase.getInstance(applicationContext))
+  }
+
+  private val homeViewModel: HomeViewModel by viewModels {
+    HomeViewModel.provideFactory(repository)
   }
 
   private val hackathonViewModel: HackathonViewModel by viewModels {
@@ -74,7 +82,7 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        var selectedTabIndex by remember { mutableIntStateOf(3) } // Default to DSA/Projects for Step 5 review
+        var selectedTabIndex by remember { mutableIntStateOf(0) } // Home is the start destination
 
         Scaffold(
           modifier = Modifier.fillMaxSize(),
@@ -101,10 +109,24 @@ class MainActivity : ComponentActivity() {
             color = MaterialTheme.colorScheme.background
           ) {
             when (selectedTabIndex) {
-              0 -> HackathonScreen(viewModel = hackathonViewModel)
-              1 -> HabitScreen(viewModel = habitViewModel)
-              2 -> FocusScreen(viewModel = focusViewModel)
-              3 -> DsaProjectsScreen(viewModel = dsaProjectsViewModel)
+              0 -> HomeScreen(
+                viewModel = homeViewModel,
+                onNavigateToHackathons = { selectedTabIndex = 1 },
+                onNavigateToHabits = { selectedTabIndex = 2 },
+                onNavigateToTimer = { selectedTabIndex = 3 },
+                onNavigateToDsa = {
+                  dsaProjectsViewModel.setSection(DsaProjectsSection.DSA)
+                  selectedTabIndex = 4
+                },
+                onNavigateToProjects = {
+                  dsaProjectsViewModel.setSection(DsaProjectsSection.PROJECTS)
+                  selectedTabIndex = 4
+                }
+              )
+              1 -> HackathonScreen(viewModel = hackathonViewModel)
+              2 -> HabitScreen(viewModel = habitViewModel)
+              3 -> FocusScreen(viewModel = focusViewModel)
+              4 -> DsaProjectsScreen(viewModel = dsaProjectsViewModel)
             }
           }
         }
