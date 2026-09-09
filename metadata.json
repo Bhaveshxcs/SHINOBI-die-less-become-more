@@ -1,6 +1,6 @@
 {
   "name": "Shinobi",
-  "description": "A clean starter canvas ready for your custom build.",
+  "description": "Ninja dev companion: track hackathon deadlines, build daily habits, master focus sessions, and track DSA problems & projects.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

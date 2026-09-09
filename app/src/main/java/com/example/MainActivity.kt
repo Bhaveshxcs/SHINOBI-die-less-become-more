@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import com.example.data.ShinobiDatabase
 import com.example.data.ShinobiRepository
+import com.example.feature.dsaprojects.DsaProjectsScreen
+import com.example.feature.dsaprojects.DsaProjectsViewModel
 import com.example.feature.focus.FocusScreen
 import com.example.feature.focus.FocusViewModel
 import com.example.feature.habits.HabitScreen
@@ -43,6 +45,7 @@ enum class ShinobiTab(val title: String, val icon: ImageVector, val tag: String)
   HACKATHONS("Hackathons", Icons.Default.EmojiEvents, "tab_hackathons"),
   HABITS("Habits", Icons.Default.Repeat, "tab_habits"),
   FOCUS("Focus", Icons.Default.HourglassBottom, "tab_focus"),
+  DSA_PROJECTS("DSA/Projects", Icons.Default.Code, "tab_dsa_projects"),
 }
 
 class MainActivity : ComponentActivity() {
@@ -62,12 +65,16 @@ class MainActivity : ComponentActivity() {
     FocusViewModel.provideFactory(repository)
   }
 
+  private val dsaProjectsViewModel: DsaProjectsViewModel by viewModels {
+    DsaProjectsViewModel.provideFactory(repository)
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        var selectedTabIndex by remember { mutableIntStateOf(2) } // Default to Focus for Step 4 review
+        var selectedTabIndex by remember { mutableIntStateOf(3) } // Default to DSA/Projects for Step 5 review
 
         Scaffold(
           modifier = Modifier.fillMaxSize(),
@@ -97,6 +104,7 @@ class MainActivity : ComponentActivity() {
               0 -> HackathonScreen(viewModel = hackathonViewModel)
               1 -> HabitScreen(viewModel = habitViewModel)
               2 -> FocusScreen(viewModel = focusViewModel)
+              3 -> DsaProjectsScreen(viewModel = dsaProjectsViewModel)
             }
           }
         }
