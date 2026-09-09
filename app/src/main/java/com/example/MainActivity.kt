@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import com.example.data.ShinobiDatabase
 import com.example.data.ShinobiRepository
+import com.example.feature.auth.AuthUiState
+import com.example.feature.auth.AuthViewModel
+import com.example.feature.auth.LoginScreen
 import com.example.feature.dsaprojects.DsaProjectsScreen
 import com.example.feature.dsaprojects.DsaProjectsSection
 import com.example.feature.dsaprojects.DsaProjectsViewModel
@@ -42,7 +45,13 @@ import com.example.feature.hackathons.HackathonScreen
 import com.example.feature.hackathons.HackathonViewModel
 import com.example.feature.home.HomeScreen
 import com.example.feature.home.HomeViewModel
+import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.ShinobiRed
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 
 enum class ShinobiTab(val title: String, val icon: ImageVector, val tag: String) {
   HOME("Home", Icons.Default.Dashboard, "tab_home"),
@@ -55,6 +64,10 @@ enum class ShinobiTab(val title: String, val icon: ImageVector, val tag: String)
 class MainActivity : ComponentActivity() {
   private val repository by lazy {
     ShinobiRepository(ShinobiDatabase.getInstance(applicationContext))
+  }
+
+  private val authViewModel: AuthViewModel by viewModels {
+    AuthViewModel.provideFactory(applicationContext)
   }
 
   private val homeViewModel: HomeViewModel by viewModels {
@@ -82,51 +95,74 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        var selectedTabIndex by remember { mutableIntStateOf(0) } // Home is the start destination
+        val authState by authViewModel.uiState.collectAsState()
 
-        Scaffold(
-          modifier = Modifier.fillMaxSize(),
-          bottomBar = {
-            NavigationBar(
-              modifier = Modifier.testTag("main_navigation_bar")
+        when (val state = authState) {
+          is AuthUiState.Loading -> {
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .padding(),
+              contentAlignment = Alignment.Center
             ) {
-              ShinobiTab.values().forEachIndexed { index, tab ->
-                NavigationBarItem(
-                  selected = selectedTabIndex == index,
-                  onClick = { selectedTabIndex = index },
-                  icon = { Icon(imageVector = tab.icon, contentDescription = tab.title) },
-                  label = { Text(tab.title) },
-                  modifier = Modifier.testTag(tab.tag)
-                )
-              }
+              CircularProgressIndicator(color = ShinobiRed)
             }
           }
-        ) { innerPadding ->
-          Surface(
-            modifier = Modifier
-              .fillMaxSize()
-              .padding(innerPadding),
-            color = MaterialTheme.colorScheme.background
-          ) {
-            when (selectedTabIndex) {
-              0 -> HomeScreen(
-                viewModel = homeViewModel,
-                onNavigateToHackathons = { selectedTabIndex = 1 },
-                onNavigateToHabits = { selectedTabIndex = 2 },
-                onNavigateToTimer = { selectedTabIndex = 3 },
-                onNavigateToDsa = {
-                  dsaProjectsViewModel.setSection(DsaProjectsSection.DSA)
-                  selectedTabIndex = 4
-                },
-                onNavigateToProjects = {
-                  dsaProjectsViewModel.setSection(DsaProjectsSection.PROJECTS)
-                  selectedTabIndex = 4
+
+          is AuthUiState.Unauthenticated, is AuthUiState.Error -> {
+            LoginScreen(viewModel = authViewModel)
+          }
+
+          is AuthUiState.Authenticated -> {
+            var selectedTabIndex by remember { mutableIntStateOf(0) } // Home is the start destination
+
+            Scaffold(
+              modifier = Modifier.fillMaxSize(),
+              bottomBar = {
+                NavigationBar(
+                  modifier = Modifier.testTag("main_navigation_bar")
+                ) {
+                  ShinobiTab.values().forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                      selected = selectedTabIndex == index,
+                      onClick = { selectedTabIndex = index },
+                      icon = { Icon(imageVector = tab.icon, contentDescription = tab.title) },
+                      label = { Text(tab.title) },
+                      modifier = Modifier.testTag(tab.tag)
+                    )
+                  }
                 }
-              )
-              1 -> HackathonScreen(viewModel = hackathonViewModel)
-              2 -> HabitScreen(viewModel = habitViewModel)
-              3 -> FocusScreen(viewModel = focusViewModel)
-              4 -> DsaProjectsScreen(viewModel = dsaProjectsViewModel)
+              }
+            ) { innerPadding ->
+              Surface(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .padding(innerPadding),
+                color = MaterialTheme.colorScheme.background
+              ) {
+                when (selectedTabIndex) {
+                  0 -> HomeScreen(
+                    viewModel = homeViewModel,
+                    currentUser = state.user,
+                    onSignOut = { authViewModel.signOut(this@MainActivity) },
+                    onNavigateToHackathons = { selectedTabIndex = 1 },
+                    onNavigateToHabits = { selectedTabIndex = 2 },
+                    onNavigateToTimer = { selectedTabIndex = 3 },
+                    onNavigateToDsa = {
+                      dsaProjectsViewModel.setSection(DsaProjectsSection.DSA)
+                      selectedTabIndex = 4
+                    },
+                    onNavigateToProjects = {
+                      dsaProjectsViewModel.setSection(DsaProjectsSection.PROJECTS)
+                      selectedTabIndex = 4
+                    }
+                  )
+                  1 -> HackathonScreen(viewModel = hackathonViewModel)
+                  2 -> HabitScreen(viewModel = habitViewModel)
+                  3 -> FocusScreen(viewModel = focusViewModel)
+                  4 -> DsaProjectsScreen(viewModel = dsaProjectsViewModel)
+                }
+              }
             }
           }
         }
